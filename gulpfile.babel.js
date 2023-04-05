@@ -1,6 +1,5 @@
-import gulp from 'gulp';
+import gulp, {series, parallel} from 'gulp';
 import del from 'del';
-import run from 'run-sequence';
 import replace from 'gulp-replace';
 import { append } from 'gulp-insert';
 import { log } from 'gulp-util';
@@ -9,15 +8,15 @@ import { clone } from 'gulp-git';
 const SRC_REPO = 'https://github.com/doabit/semantic-ui-sass';
 const TEMP_DIR = '.temp';
 
-gulp.task('clean', () => {
+function clean () {
   return del(['./.temp', './semantic-ui.scss', './semantic-ui.js', './scss', './icons', './images', './js']);
-});
+}
 
-gulp.task('fetch', (done) => {
+function fetch (done) {
   clone(SRC_REPO, { args: TEMP_DIR, quiet: true }, done);
-});
+}
 
-gulp.task('move-scss', () => {
+function moveScss () {
   return gulp.src(`${TEMP_DIR}/app/assets/stylesheets/semantic-ui/**/*.scss`)
     .pipe(replace(/semantic-ui\/icons/g, '#{\$icons-font-path}/icons'))
     .pipe(replace(/semantic-ui\/brand-icons/g, '#{\$icons-font-path}/brand-icons'))
@@ -25,50 +24,52 @@ gulp.task('move-scss', () => {
     .pipe(replace(/semantic-ui\/flags\.png/g, '#{\$flags-image-path}/flags.png'))
     .pipe(replace(/font-url\(/g, 'url('))
     .pipe(gulp.dest('./scss/'));
-});
+}
 
-gulp.task('move-semantic', ['move-scss'], () => {
+function moveSemantic () {
   return gulp.src(`${TEMP_DIR}/app/assets/stylesheets/semantic-ui.scss`)
     .pipe(replace(/semantic-ui/g, `scss`))
     .pipe(gulp.dest('./'));
-});
+}
 
-gulp.task('move-images', () => {
+function moveImages() {
   return gulp.src(`${TEMP_DIR}/app/assets/images/semantic-ui/**/*`)
     .pipe(gulp.dest('./images/'));
-});
+}
 
-gulp.task('move-icons', () => {
+function moveIcons () {
   return gulp.src(`${TEMP_DIR}/app/assets/fonts/semantic-ui/**/*`)
-    .pipe(gulp.dest('./icons/'));
-});
+  .pipe(gulp.dest('./icons/'));
+}
 
-gulp.task('move-javascript', () => {
+function moveJavascript () {
   return gulp.src(`${TEMP_DIR}/app/assets/javascripts/semantic-ui/**/*`)
     .pipe(gulp.dest('./js/'));
-});
-
-gulp.task('move-js', ['move-javascript'], () => {
+}
+function moveJs () {
   return gulp.src(`${TEMP_DIR}/app/assets/javascripts/semantic-ui.js`)
     .pipe(replace(/\/\/= require semantic-ui\/(.+)/g, `require('./js/$1');`))
     .pipe(gulp.dest('./'));
-});
-
-gulp.task('append-to-variables', () => {
+}
+function appendToVariables() {
   return gulp.src('./scss/globals/_variables.scss')
     .pipe(append(`$icons-font-path: '../../icons' !default;\n`))
     .pipe(append(`$flags-image-path: '../../images' !default;\n`))
     .pipe(gulp.dest('./scss/globals'));
-});
+}
 
-gulp.task('build', (done) => {
-  run('clean', 'fetch', ['move-semantic', 'move-images', 'move-icons', 'move-js'], 'append-to-variables', done);
-});
+export const build = series(
+  clean, 
+  fetch, 
+  parallel(
+    series(moveScss, moveSemantic), 
+    moveImages, 
+    moveIcons, 
+    series(moveJavascript, moveJs)
+  ),
+  appendToVariables
+);
 
-gulp.task('test', () => {
+export const test = () => {
   return log('testing...');
-});
-
-gulp.task('release', () => {
-  return log('releasing...');
-});
+}
